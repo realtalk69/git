@@ -1,4 +1,30 @@
+/*
+ * Parse and rearrange a svnadmin dump.
+ * Create the dump with:
+ * svnadmin dump --incremental -r<startrev>:<endrev> <repository> >outfile
+ *
+ * Licensed under a two-clause BSD-style license.
+ * See LICENSE for details.
+ */
+
+#include "cache.h"
+#include "fast_export.h"
+#include "line_buffer.h"
+#include "strbuf.h"
+#include "svndump.h"
+
+/*
+ * Compare start of string to literal of equal length;
+ * must be guarded by length test.
+ */
+#define constcmp(s, ref) memcmp(s, ref, sizeof(ref) - 1)
+
+#define REPORT_FILENO 3
+
+#define NODEACT_REPLACE 4
+#define NODEACT_DELETE 3
 #define NODEACT_ADD 2
+#define NODEACT_CHANGE 1
 #define NODEACT_UNKNOWN 0
 
 /* States: */
@@ -484,6 +510,7 @@ int svndump_init_fd(int in_fd, int back_fd)
 {
 	if(buffer_fdinit(&input, xdup(in_fd)))
 		return error_errno("cannot open fd %d", in_fd);
+	init(xdup(back_fd));
 	return 0;
 }
 
@@ -505,4 +532,8 @@ void svndump_deinit(void)
 }
 
 void svndump_reset(void)
+{
 	strbuf_release(&dump_ctx.uuid);
+	strbuf_release(&dump_ctx.url);
+	strbuf_release(&rev_ctx.log);
+	strbuf_release(&rev_ctx.author);
